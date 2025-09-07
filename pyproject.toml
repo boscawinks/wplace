@@ -10,7 +10,6 @@ authors = [
     { name="Boscawinks", email="bosca.winks@gmx.de" }
 ]
 dependencies = [
-    "numpy >=2.2.6",
     "pyproj >=3.7.1",
     "rasterio >= 1.4.3",
 ]
