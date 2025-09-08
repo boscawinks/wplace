@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pyproj import CRS, Transformer
 from rasterio.transform import from_bounds, rowcol, xy
-from typing import Iterator
+from urllib.parse import urlparse, parse_qs
 
 
 # setup of the pixel canvas
@@ -52,7 +52,7 @@ TILE_BASE_URL: str = f"{BACKEND_URL}/files/s0/tiles"
 PIXEL_BASE_URL: str = f"{BACKEND_URL}/s0/pixel"
 
 
-def pixel_to_lonlat(col: int, row: int) -> tuple[float, float]:
+def _pixel_to_lonlat(col: int, row: int) -> tuple[float, float]:
     """Return the WGS84 longitude and latitude of a pixel on the Wplace
     canvas.
     """
@@ -60,7 +60,7 @@ def pixel_to_lonlat(col: int, row: int) -> tuple[float, float]:
     return TO_LONLAT.transform(x, y)
 
 
-def lonlat_to_pixel(lon: float, lat: float) -> tuple[int, int]:
+def _lonlat_to_pixel(lon: float, lat: float) -> tuple[int, int]:
     """Return the pixel coordinate on the Wplace canvas corresponding to the
     given WGS84 longitude and latitude.
     """
@@ -69,88 +69,87 @@ def lonlat_to_pixel(lon: float, lat: float) -> tuple[int, int]:
     return col.item(), row.item()
 
 
-# TODO: Refactor Region, Tile, and Pixel to use the same parent class
-@dataclass(frozen=True, order=True)
-class Region:
+class _CanvasElement(tuple):
+    __slots__ = ()
+
+    # number of elements in x and y direction
+    N_X: int = None
+    N_Y: int = None
+
+    def __new__(cls, x: int, y: int):
+        if not (isinstance(x, int) and isinstance(y, int)):
+            raise TypeError("x and y must be integers")
+        if cls.N_X is None or cls.N_Y is None:
+            raise NotImplementedError(
+                f"{cls.__name__} must define class attributes N_X and N_Y")
+        if not (0 <= x < cls.N_X and 0 <= y < cls.N_Y):
+            raise ValueError(
+                f"x must be in [0,{cls.N_X}), y must be in [0,{cls.N_Y})")
+        return super().__new__(cls, (x, y))
+
+    @property
+    def x(self) -> int:
+        return self[0]
+
+    @property
+    def y(self) -> int:
+        return self[1]
+
+    def __str__(self) -> str:
+        return f"({self.x}, {self.y})"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(x={self.x}, y={self.y})"
+
+    def __add__(self, other: tuple[int, int]) -> _CanvasElement:
+        x, y = other
+        return type(self)(
+            (self.x + x) % self.N_X,
+            self.y + y,
+        )
+
+    def __sub__(
+        self,
+        other: tuple[int, int] | _CanvasElement,
+    ) -> _CanvasElement | tuple[int, int]:
+        if isinstance(other, _CanvasElement):
+            dx = self.x - other.x
+            if dx < 0:
+                dx += self.N_X
+            return dx, self.y - other.y
+        x, y = other
+        return type(self)(
+            (self.x - x) % self.N_X,
+            self.y - y,
+        )
+
+
+
+class Region(_CanvasElement):
     """A 4000 x 4000 pixels region on the Wplace canvas."""
-    x: int
-    y: int
-
-    def __post_init__(self) -> None:
-        if not 0 <= self.x < N_REGIONS_X:
-            raise ValueError(
-                f"x coordinate has to be within [{0},"
-                f" {N_REGIONS_X - 1}], got {self.x}")
-        if not 0 <= self.y < N_REGIONS_Y:
-            raise ValueError(
-                f"y coordinate has to be within [{0},"
-                f" {N_REGIONS_Y - 1}], got {self.y}")
-
-    def __iter__(self) -> Iterator[int]:
-        yield from (self.x, self.y)
-
-    def __add__(self, other) -> Tile:
-        x, y = other
-        return type(self)(
-            x=(self.x + x) % N_REGIONS_X,
-            y=self.y + y,
-        )
-
-    def __sub__(self, other) -> Tile:
-        x, y = other
-        return type(self)(
-            x=(self.x - x) % N_REGIONS_X,
-            y=self.y - y,
-        )
+    N_X: int = N_REGIONS_X
+    N_Y: int = N_REGIONS_Y
 
     @property
     def origin(self) -> Pixel:
         """Return the most north-west pixel of the region."""
         return Pixel(
-            x=self.x * N_REGION_PIXELS_X,
-            y=self.y * N_REGION_PIXELS_Y,
+            self.x * N_REGION_PIXELS_X,
+            self.y * N_REGION_PIXELS_Y,
         )
 
 
-@dataclass(frozen=True, order=True)
-class Tile:
+class Tile(_CanvasElement):
     """A 1000 x 1000 pixels tile on the Wplace canvas."""
-    x: int
-    y: int
-
-    def __post_init__(self) -> None:
-        if not 0 <= self.x < N_TILES_X:
-            raise ValueError(
-                f"x coordinate has to be within [{0},"
-                f" {N_TILES_X - 1}], got {self.x}")
-        if not 0 <= self.y < N_TILES_Y:
-            raise ValueError(
-                f"y coordinate has to be within [{0},"
-                f" {N_TILES_Y - 1}], got {self.y}")
-
-    def __iter__(self) -> Iterator[int]:
-        yield from (self.x, self.y)
-
-    def __add__(self, other) -> Tile:
-        x, y = other
-        return type(self)(
-            x=(self.x + x) % N_TILES_X,
-            y=self.y + y,
-        )
-
-    def __sub__(self, other) -> Tile:
-        x, y = other
-        return type(self)(
-            x=(self.x - x) % N_TILES_X,
-            y=self.y - y,
-        )
+    N_X: int = N_TILES_X
+    N_Y: int = N_TILES_Y
 
     @property
     def origin(self) -> Pixel:
         """Return the most north-west pixel of the tile."""
         return Pixel(
-            x=self.x * N_TILE_PIXELS_X,
-            y=self.y * N_TILE_PIXELS_Y,
+            self.x * N_TILE_PIXELS_X,
+            self.y * N_TILE_PIXELS_Y,
         )
 
     @property
@@ -164,84 +163,57 @@ class Tile:
         return f"{TILE_BASE_URL}/{self.x}/{self.y}.png"
 
 
-@dataclass(frozen=True, order=True)
-class Pixel:
+class Pixel(_CanvasElement):
     """A pixel on the Wplace canvas."""
-    x: int
-    y: int
-
-    def __post_init__(self) -> None:
-        if not 0 <= self.x < N_PIXELS_X:
-            raise ValueError(
-                f"x coordinate has to be within [{0},"
-                f" {N_PIXELS_X - 1}], got {self.x}")
-        if not 0 <= self.y < N_PIXELS_Y:
-            raise ValueError(
-                f"y coordinate has to be within [{0},"
-                f" {N_PIXELS_Y - 1}], got {self.y}")
-
-    def __iter__(self) -> Iterator[int]:
-        yield from (self.x, self.y)
-
-    def __add__(self, other) -> Pixel:
-        x, y = other
-        return type(self)(
-            x=(self.x + x) % N_PIXELS_X,
-            y=self.y + y,
-        )
-
-    def __sub__(self, other) -> Pixel:
-        x, y = other
-        return type(self)(
-            x=(self.x - x) % N_PIXELS_X,
-            y=self.y - y,
-        )
+    N_X: int = N_PIXELS_X
+    N_Y: int = N_PIXELS_Y
 
     @classmethod
     def from_tile(
         cls,
         tile: Tile,
-        pixel_x: int = 0,
-        pixel_y: int = 0,
+        px: int = 0,
+        py: int = 0,
     ) -> Pixel:
-        if not 0 <= pixel_x < N_TILE_PIXELS_X:
-            raise ValueError(
-                f"x coordinate within tile has to be within [{0},"
-                f" {N_TILE_PIXELS_X - 1}], got {pixel_x}")
-        if not 0 <= pixel_y < N_TILE_PIXELS_Y:
-            raise ValueError(
-                f"y coordinate within tile has to be within [{0},"
-                f" {N_TILE_PIXELS_Y - 1}], got {pixel_y}")
-        return tile.origin + (pixel_x, pixel_y)
+        if not 0 <= px < N_TILE_PIXELS_X:
+            raise ValueError(f"px has to be in [{0},{N_TILE_PIXELS_X})")
+        if not 0 <= py < N_TILE_PIXELS_Y:
+            raise ValueError(f"py has to be in [{0},{N_TILE_PIXELS_Y})")
+        return tile.origin + (px, py)
 
     @classmethod
     def from_region(
         cls,
         region: Region,
-        pixel_x: int = 0,
-        pixel_y: int = 0,
+        px: int = 0,
+        py: int = 0,
     ) -> Pixel:
-        if not 0 <= pixel_x < N_REGION_PIXELS_X:
-            raise ValueError(
-                f"x coordinate within region has to be within [{0},"
-                f" {N_REGION_PIXELS_X - 1}], got {pixel_x}")
-        if not 0 <= pixel_y < N_REGION_PIXELS_Y:
-            raise ValueError(
-                f"y coordinate within region has to be within [{0},"
-                f" {N_REGION_PIXELS_Y - 1}], got {pixel_y}")
-        return region.origin + (pixel_x, pixel_y)
+        if not 0 <= px < N_REGION_PIXELS_X:
+            raise ValueError(f"px has to be in [{0},{N_REGION_PIXELS_X})")
+        if not 0 <= py < N_REGION_PIXELS_Y:
+            raise ValueError(f"py has to be in [{0},{N_REGION_PIXELS_Y})")
+        return region.origin + (px, py)
 
     @classmethod
-    def from_lonlat(cls, longitude: float, latitude: float) -> Pixel:
-        x, y = lonlat_to_pixel(lon=longitude, lat=latitude)
-        return cls(x=x, y=y)
+    def from_lonlat(cls, lon: float, lat: float) -> Pixel:
+        x, y = _lonlat_to_pixel(lon=lon, lat=lat)
+        return cls(x, y)
+
+    @classmethod
+    def from_link(cls, url: str) -> Pixel:
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        return cls.from_lonlat(
+            lon=float(params["lng"][0]),
+            lat=float(params["lat"][0]),
+        )
 
     @property
     def tile(self) -> Tile:
         """Return the canvas tile that contains the pixel."""
         return Tile(
-            x=self.x // N_TILE_PIXELS_X,
-            y=self.y // N_TILE_PIXELS_Y,
+            self.x // N_TILE_PIXELS_X,
+            self.y // N_TILE_PIXELS_Y,
         )
 
     @property
@@ -256,8 +228,8 @@ class Pixel:
     def region(self) -> Region:
         """Return the canvas region that contains the pixel."""
         return Region(
-            x=self.x // N_REGION_PIXELS_X,
-            y=self.y // N_REGION_PIXELS_Y,
+            self.x // N_REGION_PIXELS_X,
+            self.y // N_REGION_PIXELS_Y,
         )
 
     @property
@@ -271,7 +243,7 @@ class Pixel:
     @property
     def lonlat(self) -> tuple[float, float]:
         """Return the WGS84 longitude and latitude of the pixel."""
-        return pixel_to_lonlat(col=self.x, row=self.y)
+        return _pixel_to_lonlat(col=self.x, row=self.y)
 
     @property
     def url(self) -> str:

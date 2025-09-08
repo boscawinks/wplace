@@ -18,7 +18,7 @@ def hex_to_rgb(hex: int | str, bit_depth: int = 8) -> tuple[int, int, int]:
 
 
 @dataclass(frozen=True, order=True)
-class Color:
+class _Color:
     id: int
     label: str
     hex: int
@@ -31,11 +31,8 @@ class Color:
     def __str__(self) -> str:
         return self.label
 
-    def __repr__(self) -> str:
-        return repr(str(self))
 
-
-class PaletteColor(Color, enum.Enum):
+class Color(_Color, enum.Enum):
     BLACK =             1, "Black",            0x000000, False
     DARK_GRAY =         2, "Dark Gray",        0x3c3c3c, False
     GRAY =              3, "Gray",             0x787878, False
@@ -101,37 +98,21 @@ class PaletteColor(Color, enum.Enum):
     LIGHT_SLATE =      60, "Light Slate",      0xb3b9d1, True
     TRANSPARENT =       0, "Transparent",      0xdeface, False
 
-    @classmethod
-    def from_hex(cls, hex: int | str) -> PaletteColor:
-        if isinstance(hex, str):
-            hex = int(hex, 16)
-        for color in cls:
-            if color.hex == hex:
-                return color
-        raise NotImplementedError(
-            f"No palette color available for hex code {hex:06x}")
 
-    @classmethod
-    def from_rgba(
-        cls,
-        red: int,
-        green: int,
-        blue: int,
-        alpha: int = 255,
-    ) -> PaletteColor:
-        if not alpha:
-            return cls.TRANSPARENT
-        try:
-            return cls.from_hex(rgb_to_hex(red, green, blue, bit_depth=8))
-        except NotImplementedError as exc:
-            rgba = (red, green, blue, alpha)
-            raise NotImplementedError(
-                f"No palette color available for RGBA tuple {rgba}") from exc
+ID_MAP: dict[int, Color] = {c.id: c for c in Color}
+HEX_MAP: dict[int, Color] = {c.hex: c for c in Color}
+RGB_MAP: dict[tuple[int, int, int], Color] = {c.rgb: c for c in Color}
 
-    @classmethod
-    def from_id(cls, id: int) -> PaletteColor:
-        for color in cls:
-            if color.id == id:
-                return color
-        raise NotImplementedError(
-            f"No palette color available for ID {id}")
+
+def from_id(id: int) -> Color:
+    return ID_MAP[id]
+
+
+def from_hex(hex: int | str) -> Color:
+    if isinstance(hex, str):
+        hex = int(hex, 16)
+    return HEX_MAP[hex]
+
+
+def from_rgb(rgb: tuple[int, int, int]) -> Color:
+    return RGB_MAP[tuple[int, int, int]]
