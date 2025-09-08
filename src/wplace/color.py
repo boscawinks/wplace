@@ -3,14 +3,14 @@ from dataclasses import dataclass
 import enum
 
 
-def rgb_to_hex(red: int, green: int, blue: int, bit_depth: int = 8) -> int:
+def _rgb_to_hex(red: int, green: int, blue: int, bit_depth: int = 8) -> int:
     hex = 0
     for i, channel in enumerate((blue, green, red)):
         hex |= channel << (i * bit_depth)
     return hex
 
 
-def hex_to_rgb(hex: int | str, bit_depth: int = 8) -> tuple[int, int, int]:
+def _hex_to_rgb(hex: int | str, bit_depth: int = 8) -> tuple[int, int, int]:
     if isinstance(hex, str):
         hex = int(hex, 16)
     mask = (1 << bit_depth) - 1
@@ -26,7 +26,7 @@ class _Color:
 
     @property
     def rgb(self) -> tuple[int, int, int]:
-        return hex_to_rgb(self.hex)
+        return _hex_to_rgb(self.hex)
 
     def __str__(self) -> str:
         return self.label
@@ -115,4 +115,4 @@ def from_hex(hex: int | str) -> Color:
 
 
 def from_rgb(rgb: tuple[int, int, int]) -> Color:
-    return RGB_MAP[tuple[int, int, int]]
+    return RGB_MAP[rgb]

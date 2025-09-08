@@ -1,5 +1,5 @@
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 from .canvas import Pixel, Region, Tile
+from .color import Color
 from .country import Country
-from .palette import Color

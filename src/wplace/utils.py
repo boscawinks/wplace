@@ -2,7 +2,7 @@ import base64
 import math
 
 from .country import Country
-from .palette import Color
+from .color import Color
 
 
 def total_needed_pixels(level: int) -> int:
