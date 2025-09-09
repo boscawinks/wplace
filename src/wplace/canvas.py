@@ -1,5 +1,4 @@
 from __future__ import annotations
-from dataclasses import dataclass
 from pyproj import CRS, Transformer
 from rasterio.transform import from_bounds, rowcol, xy
 from urllib.parse import urlparse, parse_qs
@@ -44,12 +43,6 @@ PIXEL_TRAFO = from_bounds(
     width=N_PIXELS_X,
     height=N_PIXELS_Y,
 )
-
-# used (backend) URLs
-WPLACE_URL: str = "https://wplace.live"
-BACKEND_URL: str = "https://backend.wplace.live"
-TILE_BASE_URL: str = f"{BACKEND_URL}/files/s0/tiles"
-PIXEL_BASE_URL: str = f"{BACKEND_URL}/s0/pixel"
 
 
 def _pixel_to_lonlat(col: int, row: int) -> tuple[float, float]:
@@ -157,12 +150,6 @@ class Tile(_CanvasElement):
         """Return the canvas region that contains the tile."""
         return self.origin.region
 
-    @property
-    def url(self) -> str:
-        """Return the backend URL of the tile image."""
-        return f"{TILE_BASE_URL}/{self.x}/{self.y}.png"
-
-
 class Pixel(_CanvasElement):
     """A pixel on the Wplace canvas."""
     N_X: int = N_PIXELS_X
@@ -217,7 +204,7 @@ class Pixel(_CanvasElement):
         )
 
     @property
-    def tile_pixel(self) -> tuple[int, int]:
+    def coords_in_tile(self) -> tuple[int, int]:
         """Return coordinates of the pixel within its canvas tile."""
         return (
             self.x % N_TILE_PIXELS_X,
@@ -233,7 +220,7 @@ class Pixel(_CanvasElement):
         )
 
     @property
-    def region_pixel(self) -> tuple[int, int]:
+    def coords_in_region(self) -> tuple[int, int]:
         """Return coordinates of the pixel within its canvas region."""
         return (
             self.x % N_REGION_PIXELS_X,
@@ -244,24 +231,3 @@ class Pixel(_CanvasElement):
     def lonlat(self) -> tuple[float, float]:
         """Return the WGS84 longitude and latitude of the pixel."""
         return _pixel_to_lonlat(col=self.x, row=self.y)
-
-    @property
-    def url(self) -> str:
-        """Return the backend URL used to get information about the pixel."""
-        tile_x, tile_y = self.tile
-        pixel_x, pixel_y = self.tile_pixel
-        return f"{PIXEL_BASE_URL}/{tile_x}/{tile_y}?x={pixel_x}&y={pixel_y}"
-
-    def link(
-        self,
-        select: bool = False,
-        zoom: float | None = None,
-    ) -> str:
-        """Return link that navigates to the pixel on the Wplace canvas."""
-        lon, lat = self.lonlat
-        url = f"{WPLACE_URL}/?lat={lat}&lng={lon}"
-        if zoom is not None:
-            url += f"&zoom={zoom}"
-        if select:
-            url += "&select=0"
-        return url

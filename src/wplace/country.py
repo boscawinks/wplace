@@ -284,13 +284,18 @@ class Country(_Country, enum.Enum):
     IC = 251, "IC", "Canary Islands"
 
 
-ID_MAP: dict[int, Country] = {c.id: c for c in Country}
-ISO_MAP: dict[str, Country] = {c.iso: c for c in Country}
+_ID_MAP: dict[int, Country] = {c.id: c for c in Country}
+_ISO_MAP: dict[str, Country] = {c.iso: c for c in Country}
+_FLAG_MAP: dict[str, Country] = {c.flag: c for c in Country}
 
 
 def from_id(id: int) -> Country:
-    return ID_MAP[id]
+    return _ID_MAP[id]
 
 
-def from_iso(iso: int) -> Country:
-    return ISO_MAP[iso]
+def from_iso(iso: str) -> Country:
+    return _ISO_MAP[iso]
+
+
+def from_flag(flag: str) -> Country:
+    return _FLAG_MAP[flag]
