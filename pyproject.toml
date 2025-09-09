@@ -4,12 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wplace"
-version = "0.0.3"
+version = "0.0.4"
 description = "Utility classes and methods for Wplace.live"
 authors = [
     { name="Boscawinks", email="bosca.winks@gmx.de" }
 ]
 dependencies = [
+    "cloudscraper >= 1.2.71",
+    "pillow >= 11.3.0",
     "pyproj >=3.7.1",
     "rasterio >= 1.4.3",
 ]

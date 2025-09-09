@@ -99,20 +99,20 @@ class Color(_Color, enum.Enum):
     TRANSPARENT =       0, "Transparent",      0xdeface, False
 
 
-ID_MAP: dict[int, Color] = {c.id: c for c in Color}
-HEX_MAP: dict[int, Color] = {c.hex: c for c in Color}
-RGB_MAP: dict[tuple[int, int, int], Color] = {c.rgb: c for c in Color}
+_ID_MAP: dict[int, Color] = {c.id: c for c in Color}
+_HEX_MAP: dict[int, Color] = {c.hex: c for c in Color}
+_RGB_MAP: dict[tuple[int, int, int], Color] = {c.rgb: c for c in Color}
 
 
 def from_id(id: int) -> Color:
-    return ID_MAP[id]
+    return _ID_MAP[id]
 
 
 def from_hex(hex: int | str) -> Color:
     if isinstance(hex, str):
         hex = int(hex, 16)
-    return HEX_MAP[hex]
+    return _HEX_MAP[hex]
 
 
 def from_rgb(rgb: tuple[int, int, int]) -> Color:
-    return RGB_MAP[rgb]
+    return _RGB_MAP[rgb]
