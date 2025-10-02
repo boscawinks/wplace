@@ -1,5 +1,9 @@
 from __future__ import annotations
+import base64
 from dataclasses import dataclass
+import io
+from PIL import Image
+import re
 
 from .country import Country, from_id
 
@@ -12,7 +16,7 @@ class UserInfo:
     alliance_name: str | None
     country: Country | None = None
     discord_name: str | None = None
-    #TODO: picture: Image.Image | None = None
+    picture: Image.Image | None = None
 
     @classmethod
     def from_dict(cls, info: dict[str, str | int]) -> UserInfo:
@@ -30,6 +34,14 @@ class UserInfo:
         else:
             country = from_id(country_id)
 
+        pic_str = info.get("picture")
+        if pic_str is None:
+            picture = None
+        else:
+            pic_str = re.sub("^data:image/.+;base64,", "", pic_str)
+            pic_data = base64.b64decode(pic_str)
+            picture = Image.open(io.BytesIO(pic_data))
+
         return cls(
             id=info["id"],
             name=info["name"],
@@ -37,6 +49,7 @@ class UserInfo:
             alliance_name=alliance_name,
             country=country,
             discord_name=info.get("discord", None),
+            picture=picture,
         )
 
 
